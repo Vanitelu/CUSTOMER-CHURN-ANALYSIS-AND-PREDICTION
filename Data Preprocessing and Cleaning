@@ -1,0 +1,49 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+
+
+from google.colab import drive
+drive.mount('/content/drive')
+
+df = pd.read_csv("/content/Telco_Customer_Churn_Dataset .csv")
+df.head()
+
+df.info()
+
+df.describe()
+
+df['Churn'].value_counts()
+
+print(df.isnull().sum())
+
+df['TotalCharges'] = pd.to_numeric(df['TotalCharges'], errors='coerce')
+
+
+df['TotalCharges'].fillna(df['TotalCharges'].median())
+
+categorical_cols = df.select_dtypes(include=['object']).columns.tolist()
+categorical_cols.remove('customerID')
+
+df = df.drop('customerID', axis=1)
+
+binary_cols = ['gender', 'Partner', 'Dependents', 'PhoneService', 'PaperlessBilling', 'Churn']
+for col in binary_cols:
+    df[col] = df[col].map({'Yes': 1, 'No': 0, 'Male' : 1, 'Female' : 0})
+
+from sklearn.preprocessing import LabelEncoder
+le = LabelEncoder()
+df['SeniorCitizen'] = le.fit_transform(df['SeniorCitizen'])
+
+df = pd.get_dummies(df, columns=[col for col in categorical_cols if col not in binary_cols], drop_first=True)
+
+X = df.drop('Churn', axis=1)
+y = df['Churn']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+print("X_train.shape:", X_train.shape)
+print("X_test.shape:", X_test.shape)
+print("y_train.shape:", y_train.shape)
+print("y_test.shape:", y_test.shape)
