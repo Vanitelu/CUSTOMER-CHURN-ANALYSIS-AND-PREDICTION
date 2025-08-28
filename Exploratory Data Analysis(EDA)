@@ -1,0 +1,202 @@
+import pandas as pd
+
+df = pd.read_csv('/content/Telco_Customer_Churn_Dataset .csv')
+
+import matplotlib.pyplot as plt
+
+churn_rate = df['Churn'].value_counts(normalize=True)*100
+print(f"Churn Rate: \n{churn_rate}")
+
+plt.figure(figsize=(6, 4))
+churn_rate.plot(kind='bar', color=['skyblue', 'salmon'])
+plt.title('Overall Churn Rate')
+plt.xlabel('Churn (0: No, 1: Yes)')
+plt.ylabel('Percentage')
+plt.xticks(rotation=0)
+plt.show()
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+categorical_cols = ['gender', 'Partner', 'Dependents']
+for cat_cols in categorical_cols:
+  fig,ax = plt.subplots(1,2,figsize=(10, 4))
+  df_plot_moment = df[cat_cols].value_counts().to_frame()
+  values = df_plot_moment.iloc[:,0]
+  labels = df_plot_moment.index.to_list()
+  cmap = plt.get_cmap('tab20')
+  colors = cmap(np.arange(len(labels)))
+  rects = ax[0].bar(labels, values, color = colors, edgecolor = 'black', linewidth = 2.0)
+  ax[0].set_ylabel('Count', fontsize = 12, fontweight ='bold', color = 'green')
+  ax[0].set_xticklabels(labels, fontsize = 9, fontweight = 'bold')
+  def autolabel(rects):
+    for rect in rects:
+      height = rect.get_height()
+      ax[0].annotate(text = '{}'.format(height),
+                      xy=(rect.get_x() + rect.get_width() / 2., height-0.005),
+                      xytext=(0, 3),
+                      textcoords='offset points',
+                      ha='center', va='bottom', weight = 'bold', size = 9, color = 'black')
+  autolabel(rects) # we label our bars.
+  explode = [0] * len(labels)
+  ax[1].pie(x = values, labels = labels , startangle = 20,
+          autopct = '%.1f%%', colors = colors, wedgeprops={'linewidth':1.2,'edgecolor':'black'},
+          textprops = {'color':'black', 'weight':'bold','fontsize':9}, explode = explode, pctdistance = 0.8)
+  centre_circle = plt.Circle((0, 0), 0.50, fc='white', edgecolor = 'black', linewidth = 1.2)
+  fig = plt.gcf()
+  fig.gca().add_artist(centre_circle)
+  ax[1].axis('equal')
+  fig.suptitle(f"{cat_cols}", fontsize = 10, fontweight = 'bold', color = 'darkred')
+  fig.tight_layout()
+  fig.subplots_adjust(top = 0.9)
+  plt.show()
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+
+plt.figure(figsize=(10, 6))
+ax = sns.histplot(data=df, x='tenure', hue='Churn', kde=True, multiple="stack")
+plt.title('Tenure Distribution by Churn')
+plt.xlabel('Tenure (Months)')
+plt.ylabel('Number of Customers')
+
+# Add value labels on top of the bars
+for p in ax.patches:
+    height = p.get_height()
+    if not np.isnan(height): #check for nan
+        ax.annotate(f'{int(height)}', (p.get_x() + p.get_width() / 2., height),
+                ha='center', va='bottom', fontsize=8)
+
+plt.show()
+
+# Contract Type vs Churn
+plt.figure(figsize=(8, 5))
+ax = sns.countplot(data=df, x='Contract', hue='Churn')
+plt.title('Churn by Contract Type')
+
+# Add value labels on top of the bars
+for p in ax.patches:
+    height = p.get_height()
+    if not np.isnan(height):
+        ax.annotate(f'{int(height)}', (p.get_x() + p.get_width() / 2., height),
+                ha='center', va='bottom', fontsize=8)
+plt.show()
+
+# Payment Method vs Churn
+plt.figure(figsize=(10, 5))
+ax = sns.countplot(data=df, x='PaymentMethod', hue='Churn')
+plt.title('Churn by Payment Method')
+plt.xticks(rotation=45, ha='right')
+
+# Add value labels on top of the bars
+for p in ax.patches:
+    height = p.get_height()
+    if not np.isnan(height):
+        ax.annotate(f'{int(height)}', (p.get_x() + p.get_width() / 2., height),
+                ha='center', va='bottom', fontsize=8, rotation=90)  # Rotate labels if needed
+
+plt.show()
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+
+# Convert 'TotalCharges' to numeric, coercing errors
+df['TotalCharges'] = pd.to_numeric(df['TotalCharges'], errors='coerce')
+
+# Drop rows with NaN values that resulted from coercion
+df.dropna(inplace=True)
+
+numeric_variables = ['tenure', 'MonthlyCharges', 'TotalCharges']
+# Create Pair Plot
+sns.pairplot(df, vars=numeric_variables, hue='Churn', palette='Set2', diag_kind='kde', height=2.5)
+plt.suptitle('Pair Plot of Numeric Variables by Churn', y=1.02, fontsize=16)
+plt.show()
+
+
+# Feature Engineering
+
+# Tenure in Years:
+df['TenureYears'] = df['tenure'] / 12
+
+# Average Monthly Charge (if TotalCharges is meaningful)
+df['AvgMonthlyCharge'] = df['TotalCharges'] / df['tenure']
+df['AvgMonthlyCharge'] = df['AvgMonthlyCharge'].replace([np.inf, -np.inf], 0)  # Handle division by zero
+
+# Has Multiple Services: Combine multiple "Yes/No/No internet service" columns.
+internet_cols = ['OnlineSecurity', 'OnlineBackup', 'DeviceProtection', 'TechSupport', 'StreamingTV', 'StreamingMovies']
+for col in internet_cols:
+    df[col] = df[col].map({'Yes': 1, 'No': 0, 'No internet service': 0})  # Treat "No internet service" as 0
+df['MultipleServices'] = df[internet_cols].sum(axis=1)  # Sum the binary indicators
+
+# Combine automatic payment methods
+df['IsAutomaticPayment'] = df['PaymentMethod'].apply(lambda x: 1 if 'automatic' in x else 0)
+
+     
+
+# Statistical Analysis
+
+# Chi-squared Tests (Categorical Features)
+from scipy.stats import chi2_contingency
+import pandas as pd # Import pandas if not already imported
+
+categorical_features = ['gender', 'SeniorCitizen', 'Partner', 'Dependents', 'PhoneService', 'Contract', 'PaperlessBilling', 'PaymentMethod', 'IsAutomaticPayment']
+print("\nChi-Squared Tests:")
+for feature in categorical_features:
+    contingency_table = pd.crosstab(df[feature], df['Churn'])
+    chi2, p, dof, expected = chi2_contingency(contingency_table)
+    print(f"\nFeature: {feature}")
+    print(f"  Chi2 Statistic: {chi2:.4f}")
+    print(f"  P-value: {p:.4f}")
+    if p < 0.05:
+        print("  ==> Statistically significant association with Churn")
+    else:
+        print("  ==> No statistically significant association with Churn")
+
+# T-tests or ANOVA (Numeric Features)
+from scipy.stats import ttest_ind, f_oneway
+
+numeric_features = ['tenure', 'MonthlyCharges', 'TotalCharges', 'TenureYears', 'AvgMonthlyCharge', 'MultipleServices']
+print("\nT-tests/ANOVA:")
+for feature in numeric_features:
+    churn_group = df[df['Churn'] == 1][feature]
+    no_churn_group = df[df['Churn'] == 0][feature]
+
+    if len(churn_group) > 1 and len(no_churn_group) > 1: # Check if both groups have enough data for the test
+        if len(df[feature].unique()) > 5:  # T-test if data looks roughly continuous
+            t_stat, p_val = ttest_ind(churn_group, no_churn_group, equal_var=False)  # Welch's t-test (unequal variances)
+            print(f"\nFeature: {feature} (T-test)")
+            print(f"  T-statistic: {t_stat:.4f}")
+            print(f"  P-value: {p_val:.4f}")
+            if p_val < 0.05:
+                print("  ==> Statistically significant difference between churned and non-churned customers")
+            else:
+                print("  ==> No statistically significant difference")
+        else:  # ANOVA if more like discrete categories (though it's generally better to treat them as categorical)
+            f_stat, p_val = f_oneway(churn_group, no_churn_group)
+            print(f"\nFeature: {feature} (ANOVA)")
+            print(f"  F-statistic: {f_stat:.4f}")
+            print(f"  P-value: {p_val:.4f}")
+            if p_val < 0.05:
+                print("  ==> Statistically significant difference between churned and non-churned customers")
+            else:
+                print("  ==> No statistically significant difference")
+    else:
+        print(f"\nFeature: {feature}")
+        print("  ==> Insufficient data in one or both groups to perform statistical test")
+
+# Gender and Churn:
+gender_churn = df.groupby('gender')['Churn'].value_counts(normalize=True) * 100
+print("\nChurn Rate by Gender:\n", gender_churn)
+
+
+# Senior Citizen and Churn:
+senior_churn = df.groupby('SeniorCitizen')['Churn'].value_counts(normalize=True) * 100
+print("\nChurn Rate by Senior Citizen Status:\n", senior_churn)
+
+# Partner/Dependents and Churn:
+partner_churn = df.groupby('Partner')['Churn'].value_counts(normalize=True) * 100
+dependents_churn = df.groupby('Dependents')['Churn'].value_counts(normalize=True) * 100
+print("\nChurn Rate by Partner Status:\n", partner_churn)
+print("\nChurn Rate by Dependents Status:\n", dependents_churn)
