@@ -1,0 +1,312 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.impute import SimpleImputer  # Import SimpleImputer
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_curve, auc
+
+## Warnings
+import warnings
+warnings.filterwarnings('ignore')
+
+# Load the dataset
+df = pd.read_csv("/content/Telco_Customer_Churn_Dataset .csv")
+df.head().style.background_gradient(cmap='Paired_r')
+
+df['TotalCharges'] = pd.to_numeric(df['TotalCharges'], errors='coerce')
+
+# Preprocessor with Imputation
+numerical_transformer = Pipeline(steps=[
+    ('imputer', SimpleImputer(strategy='mean')),
+    ('scaler', StandardScaler())
+])
+     
+
+# Convert binary categorical features to numerical
+binary_cols = ['Partner', 'Dependents', 'PhoneService', 'OnlineSecurity', 'OnlineBackup', 'DeviceProtection',
+                'TechSupport', 'StreamingTV', 'StreamingMovies', 'PaperlessBilling', 'Churn']
+for col in binary_cols:
+    df[col] = df[col].map({'Yes': 1, 'No': 0})
+
+# Convert gender to numerical
+df['gender'] = df['gender'].map({'Male': 1, 'Female': 0})
+     
+
+def tenure_group(tenure):
+    if tenure <= 12:
+        return '0-12'
+    elif tenure <= 24:
+        return '12-24'
+    elif tenure <= 48:
+        return '24-48'
+    elif tenure <= 60:
+        return '48-60'
+    else:
+        return '60+'
+
+df['tenure_group'] = df['tenure'].apply(tenure_group)
+
+X = df.drop(['customerID', 'Churn'], axis=1)
+y = df['Churn']
+
+
+categorical_features = X.select_dtypes(include=['object']).columns
+numerical_features = X.select_dtypes(include=['int64', 'float64']).columns
+
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', numerical_transformer, numerical_features),
+        ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_features)
+    ])
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)  #stratify for balanced split
+
+     
+
+# --- Model 1: Logistic Regression ---
+pipeline_lr = Pipeline(steps=[('preprocessor', preprocessor),
+                               ('classifier', LogisticRegression(solver='liblinear', random_state=42, class_weight='balanced'))])  # Added class_weight
+
+param_grid_lr = {
+    'classifier__C': [0.001, 0.01, 0.1, 1, 10]
+}
+
+grid_search_lr = GridSearchCV(pipeline_lr, param_grid_lr, cv=5, scoring='f1') # changed scoring to f1
+grid_search_lr.fit(X_train, y_train)
+
+best_model_lr = grid_search_lr.best_estimator_
+y_pred_lr = best_model_lr.predict(X_test)
+
+# Calculate metrics
+accuracy_lr = accuracy_score(y_test, y_pred_lr)
+precision_lr = precision_score(y_test, y_pred_lr)
+recall_lr = recall_score(y_test, y_pred_lr)
+f1_lr = f1_score(y_test, y_pred_lr)
+
+print("Logistic Regression Results:")
+print(f"Best Parameters: {grid_search_lr.best_params_}")
+print(f"Accuracy: {accuracy_lr:.4f}")
+print(f"Precision: {precision_lr:.4f}")
+print(f"Recall: {recall_lr:.4f}")
+print(f"F1-score: {f1_lr:.4f}")
+print("-" * 30)
+
+
+
+# --- Model 2: Decision Tree ---
+pipeline_dt = Pipeline(steps=[('preprocessor', preprocessor),
+                               ('classifier', DecisionTreeClassifier(random_state=42, class_weight='balanced'))]) #Added class_weight
+
+param_grid_dt = {
+    'classifier__max_depth': [3, 5, 7, None],
+    'classifier__min_samples_split': [2, 5, 10],
+    'classifier__min_samples_leaf': [1, 3, 5]
+}
+
+grid_search_dt = GridSearchCV(pipeline_dt, param_grid_dt, cv=5, scoring='f1') # changed scoring to f1
+grid_search_dt.fit(X_train, y_train)
+
+best_model_dt = grid_search_dt.best_estimator_
+y_pred_dt = best_model_dt.predict(X_test)
+
+# Calculate metrics
+accuracy_dt = accuracy_score(y_test, y_pred_dt)
+precision_dt = precision_score(y_test, y_pred_dt)
+recall_dt = recall_score(y_test, y_pred_dt)
+f1_dt = f1_score(y_test, y_pred_dt)
+
+print("Decision Tree Results:")
+print(f"Best Parameters: {grid_search_dt.best_params_}")
+print(f"Accuracy: {accuracy_dt:.4f}")
+print(f"Precision: {precision_dt:.4f}")
+print(f"Recall: {recall_dt:.4f}")
+print(f"F1-score: {f1_dt:.4f}")
+print("-" * 30)
+
+
+# --- Model 3: Random Forest ---
+pipeline_rf = Pipeline(steps=[('preprocessor', preprocessor),
+                               ('classifier', RandomForestClassifier(random_state=42, class_weight='balanced'))]) # Added class_weight
+
+param_grid_rf = {
+    'classifier__n_estimators': [50, 100, 200],
+    'classifier__max_depth': [5, 10, 15, None],
+    'classifier__min_samples_split': [2, 5],
+    'classifier__min_samples_leaf': [1, 2]
+}
+
+grid_search_rf = GridSearchCV(pipeline_rf, param_grid_rf, cv=5, scoring='f1')  # changed scoring to f1
+grid_search_rf.fit(X_train, y_train)
+
+best_model_rf = grid_search_rf.best_estimator_
+y_pred_rf = best_model_rf.predict(X_test)
+
+# Calculate metrics
+accuracy_rf = accuracy_score(y_test, y_pred_rf)
+precision_rf = precision_score(y_test, y_pred_rf)
+recall_rf = recall_score(y_test, y_pred_rf)
+f1_rf = f1_score(y_test, y_pred_rf)
+
+print("Random Forest Results:")
+print(f"Best Parameters: {grid_search_rf.best_params_}")
+print(f"Accuracy: {accuracy_rf:.4f}")
+print(f"Precision: {precision_rf:.4f}")
+print(f"Recall: {recall_rf:.4f}")
+print(f"F1-score: {f1_rf:.4f}")
+print("-" * 30)
+
+try:
+    if hasattr(best_model_rf.named_steps['classifier'], 'feature_importances_'):
+        feature_importances = best_model_rf.named_steps['classifier'].feature_importances_
+
+        # Get numerical feature names *before* scaling:
+        numerical_feature_names = numerical_features.tolist()
+
+        # Get one-hot encoded categorical feature names:
+        categorical_feature_names = best_model_rf.named_steps['preprocessor'].named_transformers_['cat'].get_feature_names_out().tolist()
+
+        # Combine numerical and categorical feature names
+        feature_names = numerical_feature_names + categorical_feature_names
+
+        # Create a dataframe to display feature importances
+        feature_importance_df = pd.DataFrame({'Feature': feature_names, 'Importance': feature_importances})
+        feature_importance_df = feature_importance_df.sort_values('Importance', ascending=False)
+        print("\nFeature Importances (Random Forest):")
+        print(feature_importance_df)
+
+
+        # Plotting Feature Importances
+        plt.figure(figsize=(12, 8))
+        plt.bar(feature_importance_df['Feature'], feature_importance_df['Importance'])
+        plt.xlabel('Feature',fontsize=12,fontweight = 'bold', color = 'deeppink')
+        plt.ylabel('Importance',fontsize=12,fontweight = 'bold', color = 'deeppink')
+        plt.title('Random Forest Feature Importances', fontsize=14, fontweight = 'bold', color = 'forestgreen')
+        plt.xticks(rotation=90, ha='right', fontsize=10)  # Rotate x-axis labels for readability
+        plt.tight_layout()
+
+        # Annotate the bars with their values
+        for i, v in enumerate(feature_importance_df['Importance']):
+            plt.text(i, v + 0.01, str(round(v, 3)), ha='center', fontsize=8)
+
+        plt.show()
+
+
+except Exception as e:
+    print(f"Could not display feature importances: {e}")
+
+model_names = ['Logistic Regression', 'Decision Tree', 'Random Forest']
+accuracy_scores = [accuracy_lr, accuracy_dt, accuracy_rf]
+precision_scores = [precision_lr, precision_dt, precision_rf]
+recall_scores = [recall_lr, recall_dt, recall_rf]
+f1_scores = [f1_lr, f1_dt, f1_rf]
+
+x = np.arange(len(model_names))  # the label locations
+width = 0.2  # the width of the bars
+
+fig, ax = plt.subplots(figsize=(12, 8))
+rects1 = ax.bar(x - 3*width/2, accuracy_scores, width, label='Accuracy')
+rects2 = ax.bar(x - width/2, precision_scores, width, label='Precision')
+rects3 = ax.bar(x + width/2, recall_scores, width, label='Recall')
+rects4 = ax.bar(x + 3*width/2, f1_scores, width, label='F1-score')
+
+# Add some text for labels, title and custom x-axis tick labels, etc.
+ax.set_ylabel('Scores', fontsize=12,fontweight = 'bold', color = 'darkcyan')
+ax.set_title('Model Performance Comparison',fontsize=14,fontweight = 'bold', color = 'forestgreen')
+ax.set_xticks(x)
+ax.set_xticklabels(model_names, fontsize=10)
+ax.legend(fontsize=10)
+
+# Function to add labels above the bars
+def autolabel(rects):
+    """Attach a text label above each bar in *rects*, displaying its height."""
+    for rect in rects:
+        height = rect.get_height()
+        ax.annotate('{}'.format(round(height, 3)),
+                    xy=(rect.get_x() + rect.get_width() / 2, height),
+                    xytext=(0, 3),  # 3 points vertical offset
+                    textcoords="offset points",
+                    ha='center', va='bottom', fontsize=8)
+
+autolabel(rects1)
+autolabel(rects2)
+autolabel(rects3)
+autolabel(rects4)
+
+fig.tight_layout()
+plt.show()
+
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Load the dataset
+df = pd.read_csv("/content/Telco_Customer_Churn_Dataset .csv")
+
+df['TotalCharges'] = pd.to_numeric(df['TotalCharges'], errors='coerce')
+# Fill NaN values in TotalCharges with 0 or another appropriate value like mean
+df['TotalCharges'] = df['TotalCharges'].fillna(0)
+
+binary_cols = ['Partner', 'Dependents', 'PhoneService', 'PaperlessBilling']
+for col in binary_cols:
+    if col in df.columns: #check if the column exists before processing
+        df[col] = df[col].map({'Yes': 1, 'No': 0})
+
+# Convert gender to numerical
+if 'gender' in df.columns:
+     df['gender'] = df['gender'].map({'Male': 1, 'Female': 0})
+
+
+X = df[['tenure', 'MonthlyCharges']]
+y = df['Churn'].map({'Yes': 1, 'No': 0}) if 'Churn' in df.columns else None
+
+if y is None:
+    raise KeyError("Churn column not found in the dataset.")
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+# Train a Model (Logistic Regression for example)
+model = LogisticRegression()
+model.fit(X_train, y_train)
+
+# Make Predictions
+y_pred = model.predict(X_test)
+
+# --- Calculate and Print Classification Metrics ---
+
+# 1. Accuracy
+accuracy = accuracy_score(y_test, y_pred)
+print(f"Accuracy: {accuracy:.4f}")
+
+# 2. Precision
+precision = precision_score(y_test, y_pred)
+print(f"Precision: {precision:.4f}")
+
+# 3. Recall
+recall = recall_score(y_test, y_pred)
+print(f"Recall: {recall:.4f}")
+
+# 4. F1-Score
+f1 = f1_score(y_test, y_pred)
+print(f"F1-Score: {f1:.4f}")
+
+cm = confusion_matrix(y_test, y_pred)
+print("\nConfusion Matrix:")
+print(cm)
+
+# --- Visualizing the Confusion Matrix  ---
+sns.heatmap(cm, annot=True, fmt="d", cmap="Blues")  # annot=True displays the values; fmt="d" formats as integers
+plt.title("Confusion Matrix",fontsize=14,fontweight = 'bold', color = 'forestgreen')
+plt.xlabel("Predicted Label",fontsize = 12, fontweight = 'bold', color = 'darkorange')
+plt.ylabel("True Label",fontsize = 12, fontweight = 'bold', color = 'darkorange')
+plt.show()
+     
